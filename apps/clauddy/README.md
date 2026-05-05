@@ -7,25 +7,21 @@ custom faces:
 - `working`
 - `alerting`
 
-Target platform is macOS. Runtime switching is a small Bluetooth JSON command,
+Target platforms are macOS and Linux (working) and Windows (experimental). Runtime switching is a small Bluetooth JSON command,
 so it is fast once the three faces have been installed.
 
-## Why this exists
+## Requirements
 
-Display three states on the device: working, waiting for your feedback, chilling.
-
-## Faces
-
-The three GIFs in `assets/` are the shipping faces. Editable
-[Aseprite](https://www.aseprite.org/) sources live next to each GIF
-(`chilling.aseprite`, `working.aseprite`, `alerting.aseprite`) — open in
-Aseprite, edit, re-export the GIF, re-run `install.sh` to push it to the
-device.
+- **Python 3.8+**
+- **Pillow** (`pip install Pillow`)
+- **pyserial** (Windows only: `pip install pyserial`)
 
 ## Install
 
-Pair the MiniToo in macOS System Settings first. Disconnect the official Divoom
+Pair the MiniToo in your OS Bluetooth settings first. Disconnect the official Divoom
 phone app while installing or switching states.
+
+### macOS and Linux
 
 Run:
 
@@ -33,6 +29,24 @@ Run:
 cd /path/to/apps/clauddy
 ./install.sh --email <DIVOOM_LOGIN>
 ```
+
+The installer:
+
+1. Tries to find the paired MiniToo Bluetooth MAC address automatically.
+2. Checks that the OS can open a Bluetooth connection to the MiniToo.
+3. Prompts for the Divoom password locally.
+4. Logs in only to discover custom face IDs and persist frame styles.
+5. Writes `~/.clauddy/config`.
+6. Uploads the bundled GIFs into the three MiniToo custom faces.
+
+### Windows
+
+1. Ensure the device is paired and assigned a COM port (e.g., COM3).
+2. Install dependencies: `pip install Pillow pyserial`.
+3. Run the installer (requires a bash shell like Git Bash):
+   ```bash
+   ./install.sh --email <DIVOOM_LOGIN> --mac COM3
+   ```
 
 The installer:
 

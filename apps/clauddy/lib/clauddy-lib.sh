@@ -80,7 +80,11 @@ clauddy_detect_minitoo_macs() {
 }
 
 clauddy_require_macos() {
-  [ "$(uname -s)" = "Darwin" ] || clauddy_die "Clauddy currently supports macOS only."
+  local os
+  os="$(uname -s)"
+  if [ "$os" != "Darwin" ] && [ "$os" != "Linux" ] && [[ "$os" != MINGW* ]] && [[ "$os" != CYGWIN* ]] && [[ "$os" != MSYS* ]]; then
+    clauddy_die "Clauddy currently supports macOS, Linux and Windows only."
+  fi
 }
 
 clauddy_require_python_pillow() {
@@ -111,9 +115,11 @@ clauddy_ensure_dv_app() {
   local dir
   dir="$(clauddy_core_dir)"
   clauddy_require_dv
-  if [ ! -x "$dir/divoom-send.app/Contents/MacOS/divoom-send" ]; then
-    clauddy_note "Building macOS Bluetooth helper..."
-    (cd "$dir" && ./build.sh) || clauddy_die "failed to build divoom-send.app. Xcode command line tools may be missing."
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if [ ! -x "$dir/divoom-send.app/Contents/MacOS/divoom-send" ]; then
+      clauddy_note "Building macOS Bluetooth helper..."
+      (cd "$dir" && ./build.sh) || clauddy_die "failed to build divoom-send.app. Xcode command line tools may be missing."
+    fi
   fi
 }
 
@@ -133,7 +139,7 @@ Could not connect to the Divoom display device over Bluetooth.
 
 Check:
   1. Device is powered on and awake.
-  2. It is paired in macOS System Settings > Bluetooth.
+  2. It is paired in Bluetooth settings.
   3. The Divoom phone app is not currently connected to the device.
   4. The Bluetooth MAC address in the Clauddy config is correct.
 

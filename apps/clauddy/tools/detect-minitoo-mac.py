@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Best-effort Divoom display-device Bluetooth MAC detector for macOS.
+"""Best-effort Divoom display-device Bluetooth MAC detector for macOS, Linux, and Windows.
 
 Recognizes the Jieli-SoC Divoom speakers that share the MiniToo firmware/
 protocol stack. Extend SUPPORTED_DEVICE_TOKENS to add more variants once
@@ -12,6 +12,7 @@ import json
 import re
 import shutil
 import subprocess
+import platform
 from collections.abc import Iterator
 
 
@@ -127,6 +128,39 @@ def parse_system_profiler(candidates: dict[str, tuple[str, str]]) -> None:
         parse_text_blocks(text, "system_profiler", candidates)
 
 
+def parse_blueutil(candidates: dict[str, tuple[str, str]]) -> None:
+    if shutil.which("blueutil") is None:
+        return
+
+    json_text = run(["blueutil", "--paired", "--format", "json"])
+    if json_text:
+        try:
+            walk_json(json.loads(json_text), "blueutil", candidates)
+        except json.JSONDecodeError:
+            parse_text_blocks(json_text, "blueutil", candidates)
+
+    text = run(["blueutil", "--paired"])
+    if text:
+        parse_text_blocks(text, "blueutil", candidates)
+
+
+def parse_ioreg(candidates: dict[str, tuple[str, str]]) -> None:
+    text = run(["ioreg", "-r", "-c", "IOBluetoothDevice"])
+    if not text:
+        return
+
+    current_name: str | None = None
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if '"Name"' in line or '"DeviceName"' in line:
+            _, _, value = line.partition("=")
+            value = value.strip().strip('"')
+            current_name = value if is_minitoo_name(value) else None
+        elif current_name and ('"DeviceAddress"' in line or '"Address"' in line):
+            for mac in MAC_RE.findall(line):
+                add_candidate(candidates, mac, current_name, "ioreg")
+
+
 def parse_bluetoothctl(candidates: dict[str, tuple[str, str]]) -> None:
     text = run(["bluetoothctl", "devices", "Paired"])
     if not text:
@@ -143,9 +177,30 @@ def parse_bluetoothctl(candidates: dict[str, tuple[str, str]]) -> None:
                     add_candidate(candidates, mac, name, "bluetoothctl")
 
 
+def parse_windows_powershell(candidates: dict[str, tuple[str, str]]) -> None:
+    # Query PnP devices for Bluetooth devices.
+    cmd = [
+        "powershell", "-NoProfile", "-Command",
+        'Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName, DeviceID | ConvertTo-Json'
+    ]
+    output = run(cmd)
+    if output:
+        try:
+            devices = json.loads(output)
+            if isinstance(devices, dict): devices = [devices]
+            for dev in devices:
+                name = dev.get("FriendlyName", "")
+                device_id = dev.get("DeviceID", "")
+                if is_minitoo_name(name):
+                    mac_matches = MAC_RE.findall(device_id)
+                    if mac_matches:
+                        add_candidate(candidates, mac_matches[0], name, "powershell")
+        except json.JSONDecodeError:
+            pass
+
+
 def main() -> int:
     candidates: dict[str, tuple[str, str]] = {}
-    import platform
     system = platform.system()
     if system == "Darwin":
         parse_system_profiler(candidates)
@@ -153,6 +208,8 @@ def main() -> int:
         parse_ioreg(candidates)
     elif system == "Linux":
         parse_bluetoothctl(candidates)
+    elif system == "Windows":
+        parse_windows_powershell(candidates)
 
     for mac, (name, source) in sorted(candidates.items()):
         print(f"{mac}\t{name}\t{source}")

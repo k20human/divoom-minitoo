@@ -85,16 +85,42 @@ device actually does. Then `core/` is your library.
 
 ## Status
 
+## Status
+
 - **Device:** Divoom MiniToo, firmware 2.4.0, 160×128 display. The Divoom
   Tiivoo 2 (BT-advertised as `Divoom Tiivoo 2-Audio`) ships the same Jieli
   firmware and is protocol-identical — see `FINDINGS.md` §1a.
-- **Host:** macOS only. Uses `IOBluetooth` for Classic RFCOMM. Linux / Windows
-  ports would need a different transport binary.
+- **Host:** macOS, Linux, and Windows.
+    - **macOS**: Native Swift helper (`divoom-send.swift`).
+    - **Linux**: Python helper (`divoom-send-linux.py`) using `socket.AF_BLUETOOTH`.
+    - **Windows**: Python helper (`divoom-send-windows.py`) using `pyserial` over COM ports.
 - **Maturity:** working draft. The agent-status path (instant face switching
   via `Channel/SetClockSelectId`) is solid and used daily. Other paths
   (live-animation streaming via `0x8B`, photo upload via `0x8D`, ANCS-style
   text-with-icon notifications) are verified end-to-end but less polished. See
   the per-opcode support matrix in `FINDINGS.md` §9.
+
+## Dependencies
+
+### Common
+- **Python 3.8+**
+- **Pillow** (`pip install Pillow`) for image processing scripts.
+
+### Linux
+- **BlueZ** (usually pre-installed on most distros).
+- Python scripts use native Bluetooth sockets.
+
+### Windows
+- **pyserial** (`pip install pyserial`).
+- The Divoom device must be paired and assigned a COM port in Windows Bluetooth settings.
+
+---
+
+## Photo Uploads
+
+The MiniToo expects a proprietary **eZip** format for reliable photo uploads.
+- **macOS**: Supported via `core/photo-ezip.py` using the `eZIPSDK` bridge.
+- **Linux/Windows**: Currently limited. `photo-send.py` (WebP) and `pixel-send.py` (JPEG) are provided but may be unstable or rejected by the firmware. Reliable eZip encoding on these platforms is a work-in-progress.
 
 ---
 
