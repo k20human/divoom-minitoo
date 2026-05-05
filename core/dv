@@ -21,9 +21,26 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-APP="$HERE/divoom-send.app"
 LOG=/tmp/divoom-send.log
 FIFO=/tmp/divoom.fifo
+
+OS="$(uname -s)"
+if [ "$OS" = "Darwin" ]; then
+  APP="$HERE/divoom-send.app"
+  SEND_CMD="open -g $APP --args"
+  ONESHOT_CMD="open -W $APP --args"
+elif [ "$OS" = "Linux" ]; then
+  SEND_EXE="$HERE/divoom-send-linux.py"
+  SEND_CMD="$SEND_EXE"
+  ONESHOT_CMD="$SEND_EXE"
+elif [[ "$OS" == MINGW* ]] || [[ "$OS" == CYGWIN* ]] || [[ "$OS" == MSYS* ]]; then
+  SEND_EXE="python $HERE/divoom-send-windows.py"
+  SEND_CMD="$SEND_EXE"
+  ONESHOT_CMD="$SEND_EXE"
+else
+  echo "Unsupported OS: $OS" >&2
+  exit 1
+fi
 
 case "${1:-}" in
   start)
@@ -33,12 +50,18 @@ case "${1:-}" in
       exit 1
     fi
     : > "$LOG"
-    # -g = don't activate/foreground. Bundle stays alive because Swift never returns from runDaemon.
-    open -g "$APP" --args "$MAC" daemon
+    if [ "$OS" = "Darwin" ]; then
+      $SEND_CMD "$MAC" daemon
+    elif [ "$OS" = "Linux" ]; then
+      $SEND_CMD "$MAC" daemon >> "$LOG" 2>&1 &
+    else
+      echo "daemon mode not supported on Windows (yet). Use shell or oneshot." >&2
+      exit 1
+    fi
     # Wait up to 10s for the daemon to advertise readiness (BT handshake + SDP can be slow).
     for i in $(seq 1 100); do
       if [ -p "$FIFO" ] && grep -q "daemon: listening" "$LOG" 2>/dev/null; then
-        echo "daemon started (pid $(pgrep -n divoom-send)). log: tail -f $LOG"
+        echo "daemon started. log: tail -f $LOG"
         exit 0
       fi
       sleep 0.1
@@ -58,12 +81,16 @@ case "${1:-}" in
       exit 1
     fi
     : > "$LOG"
-    # -g = don't activate/foreground. Bundle stays alive because Swift never returns from runDaemon.
-    open -g "$APP" --args "$MAC" daemon-custom "$FILE_ID" "$RAWFILE" "$DEVICE_ID" "$DELAY_MS"
+    if [ "$OS" = "Darwin" ]; then
+      $SEND_CMD "$MAC" daemon-custom "$FILE_ID" "$RAWFILE" "$DEVICE_ID" "$DELAY_MS"
+    else
+      echo "start-custom not yet implemented on $OS" >&2
+      exit 1
+    fi
     # Wait up to 10s for the daemon to advertise readiness (BT handshake + SDP can be slow).
     for i in $(seq 1 100); do
       if [ -p "$FIFO" ] && grep -q "daemon: listening" "$LOG" 2>/dev/null; then
-        echo "custom daemon started (pid $(pgrep -n divoom-send)). log: tail -f $LOG"
+        echo "custom daemon started. log: tail -f $LOG"
         exit 0
       fi
       sleep 0.1
@@ -86,12 +113,16 @@ case "${1:-}" in
       exit 1
     fi
     : > "$LOG"
-    # -g = don't activate/foreground. Bundle stays alive because Swift never returns from runDaemon.
-    open -g "$APP" --args "$MAC" daemon-custom-multi "$DEVICE_ID" "$DELAY_MS" "$@"
+    if [ "$OS" = "Darwin" ]; then
+      $SEND_CMD "$MAC" daemon-custom-multi "$DEVICE_ID" "$DELAY_MS" "$@"
+    else
+      echo "start-custom-multi not yet implemented on $OS" >&2
+      exit 1
+    fi
     # Wait up to 10s for the daemon to advertise readiness (BT handshake + SDP can be slow).
     for i in $(seq 1 100); do
       if [ -p "$FIFO" ] && grep -q "daemon: listening" "$LOG" 2>/dev/null; then
-        echo "custom multi daemon started (pid $(pgrep -n divoom-send)). log: tail -f $LOG"
+        echo "custom multi daemon started. log: tail -f $LOG"
         exit 0
       fi
       sleep 0.1
@@ -114,7 +145,11 @@ case "${1:-}" in
     MAC="${1:?usage: dv oneshot <MAC> <cmd> <args>}"
     shift
     : > "$LOG"
-    open -W "$APP" --args "$MAC" "$@" || true
+    if [ "$OS" = "Darwin" ]; then
+      $ONESHOT_CMD "$MAC" "$@" || true
+    else
+      $ONESHOT_CMD "$MAC" "$@" >> "$LOG" 2>&1 || true
+    fi
     cat "$LOG"
     ;;
   "")
