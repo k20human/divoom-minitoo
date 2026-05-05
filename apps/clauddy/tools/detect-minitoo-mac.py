@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Best-effort Divoom display-device Bluetooth MAC detector for macOS.
+"""Best-effort Divoom display-device Bluetooth MAC detector for macOS, Linux, and Windows.
 
 Recognizes the Jieli-SoC Divoom speakers that share the MiniToo firmware/
 protocol stack. Extend SUPPORTED_DEVICE_TOKENS to add more variants once
@@ -12,6 +12,7 @@ import json
 import re
 import shutil
 import subprocess
+import platform
 from collections.abc import Iterator
 
 
@@ -160,11 +161,55 @@ def parse_ioreg(candidates: dict[str, tuple[str, str]]) -> None:
                 add_candidate(candidates, mac, current_name, "ioreg")
 
 
+def parse_bluetoothctl(candidates: dict[str, tuple[str, str]]) -> None:
+    text = run(["bluetoothctl", "devices", "Paired"])
+    if not text:
+        text = run(["bluetoothctl", "paired-devices"]) # old version
+    
+    if text:
+        for line in text.splitlines():
+            # "Device AA:BB:CC:DD:EE:FF Name"
+            parts = line.split(" ", 2)
+            if len(parts) >= 3:
+                mac = parts[1]
+                name = parts[2]
+                if is_minitoo_name(name):
+                    add_candidate(candidates, mac, name, "bluetoothctl")
+
+
+def parse_windows_powershell(candidates: dict[str, tuple[str, str]]) -> None:
+    # Query PnP devices for Bluetooth devices.
+    cmd = [
+        "powershell", "-NoProfile", "-Command",
+        'Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName, DeviceID | ConvertTo-Json'
+    ]
+    output = run(cmd)
+    if output:
+        try:
+            devices = json.loads(output)
+            if isinstance(devices, dict): devices = [devices]
+            for dev in devices:
+                name = dev.get("FriendlyName", "")
+                device_id = dev.get("DeviceID", "")
+                if is_minitoo_name(name):
+                    mac_matches = MAC_RE.findall(device_id)
+                    if mac_matches:
+                        add_candidate(candidates, mac_matches[0], name, "powershell")
+        except json.JSONDecodeError:
+            pass
+
+
 def main() -> int:
     candidates: dict[str, tuple[str, str]] = {}
-    parse_system_profiler(candidates)
-    parse_blueutil(candidates)
-    parse_ioreg(candidates)
+    system = platform.system()
+    if system == "Darwin":
+        parse_system_profiler(candidates)
+        parse_blueutil(candidates)
+        parse_ioreg(candidates)
+    elif system == "Linux":
+        parse_bluetoothctl(candidates)
+    elif system == "Windows":
+        parse_windows_powershell(candidates)
 
     for mac, (name, source) in sorted(candidates.items()):
         print(f"{mac}\t{name}\t{source}")
