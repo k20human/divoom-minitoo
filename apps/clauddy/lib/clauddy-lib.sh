@@ -118,11 +118,11 @@ clauddy_ensure_dv_app() {
 }
 
 clauddy_daemon_running() {
-  [ -p "$CLAUDDY_FIFO" ] && pgrep -f "divoom-send" >/dev/null 2>&1
+  [ -p "$CLAUDDY_FIFO" ] && (pgrep -f "divoom-send" || pgrep -f "divoom-send-linux.py") >/dev/null 2>&1
 }
 
 clauddy_clear_stale_fifo() {
-  if [ -p "$CLAUDDY_FIFO" ] && ! pgrep -f "divoom-send" >/dev/null 2>&1; then
+  if [ -p "$CLAUDDY_FIFO" ] && ! (pgrep -f "divoom-send" || pgrep -f "divoom-send-linux.py") >/dev/null 2>&1; then
     rm -f "$CLAUDDY_FIFO"
   fi
 }

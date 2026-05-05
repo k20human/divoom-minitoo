@@ -127,44 +127,32 @@ def parse_system_profiler(candidates: dict[str, tuple[str, str]]) -> None:
         parse_text_blocks(text, "system_profiler", candidates)
 
 
-def parse_blueutil(candidates: dict[str, tuple[str, str]]) -> None:
-    if shutil.which("blueutil") is None:
-        return
-
-    json_text = run(["blueutil", "--paired", "--format", "json"])
-    if json_text:
-        try:
-            walk_json(json.loads(json_text), "blueutil", candidates)
-        except json.JSONDecodeError:
-            parse_text_blocks(json_text, "blueutil", candidates)
-
-    text = run(["blueutil", "--paired"])
-    if text:
-        parse_text_blocks(text, "blueutil", candidates)
-
-
-def parse_ioreg(candidates: dict[str, tuple[str, str]]) -> None:
-    text = run(["ioreg", "-r", "-c", "IOBluetoothDevice"])
+def parse_bluetoothctl(candidates: dict[str, tuple[str, str]]) -> None:
+    text = run(["bluetoothctl", "devices", "Paired"])
     if not text:
-        return
-
-    current_name: str | None = None
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if '"Name"' in line or '"DeviceName"' in line:
-            _, _, value = line.partition("=")
-            value = value.strip().strip('"')
-            current_name = value if is_minitoo_name(value) else None
-        elif current_name and ('"DeviceAddress"' in line or '"Address"' in line):
-            for mac in MAC_RE.findall(line):
-                add_candidate(candidates, mac, current_name, "ioreg")
+        text = run(["bluetoothctl", "paired-devices"]) # old version
+    
+    if text:
+        for line in text.splitlines():
+            # "Device AA:BB:CC:DD:EE:FF Name"
+            parts = line.split(" ", 2)
+            if len(parts) >= 3:
+                mac = parts[1]
+                name = parts[2]
+                if is_minitoo_name(name):
+                    add_candidate(candidates, mac, name, "bluetoothctl")
 
 
 def main() -> int:
     candidates: dict[str, tuple[str, str]] = {}
-    parse_system_profiler(candidates)
-    parse_blueutil(candidates)
-    parse_ioreg(candidates)
+    import platform
+    system = platform.system()
+    if system == "Darwin":
+        parse_system_profiler(candidates)
+        parse_blueutil(candidates)
+        parse_ioreg(candidates)
+    elif system == "Linux":
+        parse_bluetoothctl(candidates)
 
     for mac, (name, source) in sorted(candidates.items()):
         print(f"{mac}\t{name}\t{source}")
