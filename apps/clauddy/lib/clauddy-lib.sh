@@ -310,7 +310,7 @@ clauddy_upload_custom() {
   # the real custom ClockId is still used below for style and runtime selection.
   clauddy_send_json "$(clauddy_clean_json "$page_index" 0 "$device_id")"
   clauddy_send_json "$(clauddy_set_custom_json "$page_index" "$file_id" 0 "$device_id")"
-  if ! clauddy_wait_for_upload_ack 45; then
+  if ! clauddy_wait_for_upload_ack 180; then
     clauddy_bluetooth_help
     clauddy_stop_daemon
     clauddy_die "timed out waiting for device to ACK $state upload."

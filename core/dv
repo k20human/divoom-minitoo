@@ -83,6 +83,8 @@ case "${1:-}" in
     : > "$LOG"
     if [ "$OS" = "Darwin" ]; then
       $SEND_CMD "$MAC" daemon-custom "$FILE_ID" "$RAWFILE" "$DEVICE_ID" "$DELAY_MS"
+    elif [ "$OS" = "Linux" ]; then
+      $SEND_CMD "$MAC" daemon-custom "$FILE_ID" "$RAWFILE" "$DEVICE_ID" "$DELAY_MS" >> "$LOG" 2>&1 &
     else
       echo "start-custom not yet implemented on $OS" >&2
       exit 1
@@ -115,6 +117,8 @@ case "${1:-}" in
     : > "$LOG"
     if [ "$OS" = "Darwin" ]; then
       $SEND_CMD "$MAC" daemon-custom-multi "$DEVICE_ID" "$DELAY_MS" "$@"
+    elif [ "$OS" = "Linux" ]; then
+      $SEND_CMD "$MAC" daemon-custom-multi "$DEVICE_ID" "$DELAY_MS" "$@" >> "$LOG" 2>&1 &
     else
       echo "start-custom-multi not yet implemented on $OS" >&2
       exit 1
