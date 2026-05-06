@@ -11,7 +11,7 @@ chilling.
 
 | working | alerting | chilling |
 | :---: | :---: | :---: |
-| ![working](apps/clauddy/assets/working.gif) | ![alerting](apps/clauddy/assets/alerting.gif) | ![chilling](apps/clauddy/assets/chilling.gif) |
+| ![working](apps/clauddy/assets/working_old.gif) | ![alerting](apps/clauddy/assets/alerting.gif) | ![chilling](apps/clauddy/assets/chilling.gif) |
 
 ```
 ./apps/clauddy/set-clauddy-state.sh working
